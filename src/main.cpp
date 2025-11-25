@@ -15,6 +15,8 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <cstdlib> // For rand()
+#include <ctime>   // For time()
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -41,6 +43,9 @@ glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
 glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
 bool flashlightOn = false;
 bool fKeyPressed = false; // Debounce for F key
+bool autoRotate = false;
+bool rKeyPressed = false; // Debounce for R key
+bool spaceKeyPressed = false; // Debounce for Space key
 
 // sphere generation (kept for light source)
 void generateSphere(float radius, int sectorCount, int stackCount, std::vector<float>& vertices, std::vector<unsigned int>& indices) {
@@ -127,6 +132,9 @@ int main()
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
+
+    // Initialize random seed
+    srand(static_cast <unsigned> (time(0)));
 
     // glfw window creation
     // --------------------
@@ -304,6 +312,11 @@ int main()
         // world transformation
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(5.0f)); 
+        
+        if (autoRotate) {
+             model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+        
         lightingShader.setMat4("model", model);
 
         // render the apple
@@ -408,6 +421,27 @@ void processInput(GLFWwindow *window)
     }
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
         fKeyPressed = false;
+    }
+
+    // Auto-Rotation Toggle
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rKeyPressed) {
+        autoRotate = !autoRotate;
+        rKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) {
+        rKeyPressed = false;
+    }
+
+    // Random Light Color (Space)
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !spaceKeyPressed) {
+        float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        float g = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        float b = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        lightColor = glm::vec3(r, g, b);
+        spaceKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+        spaceKeyPressed = false;
     }
 
     // Light Controls (Only if NOT in flashlight mode)
