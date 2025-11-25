@@ -1,0 +1,1 @@
+/usr/bin/c++  -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/app.dir/src/main.cpp.o -o app -F/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/System/Library/Frameworks  -Wl,-rpath,/opt/homebrew/lib /opt/homebrew/lib/libglm.dylib /opt/homebrew/lib/libglfw.3.4.dylib /opt/homebrew/lib/libGLEW.2.2.0.dylib -framework OpenGL -framework OpenGL
