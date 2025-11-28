@@ -9,8 +9,7 @@
 #include <camera.h>
 #include <objloader.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+
 
 #include <iostream>
 #include <vector>
@@ -22,11 +21,11 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
-unsigned int loadTexture(const char *path);
+
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1280;
+const unsigned int SCR_HEIGHT = 720;
 
 // camera
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -46,6 +45,8 @@ bool fKeyPressed = false; // Debounce for F key
 bool autoRotate = false;
 bool rKeyPressed = false; // Debounce for R key
 bool spaceKeyPressed = false; // Debounce for Space key
+bool key7Pressed = false; // Debounce for 7 key
+bool key8Pressed = false; // Debounce for 8 key
 
 // sphere generation (kept for light source)
 void generateSphere(float radius, int sectorCount, int stackCount, std::vector<float>& vertices, std::vector<unsigned int>& indices) {
@@ -171,9 +172,7 @@ int main()
     Shader lightingShader("shaders/2.1.basic_lighting.vs", "shaders/2.1.basic_lighting.fs");
     Shader lampShader("shaders/2.1.lamp.vs", "shaders/2.1.lamp.fs");
 
-    // load textures
-    // -------------
-    unsigned int appleTexture = loadTexture("src/apple_color.png");
+
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -209,26 +208,17 @@ int main()
         } else {
             appleData.push_back(0.0f); appleData.push_back(0.0f); appleData.push_back(1.0f);
         }
-
-        if(i < appleUVs.size()) {
-            appleData.push_back(appleUVs[i].x);
-            appleData.push_back(appleUVs[i].y);
-        } else {
-            appleData.push_back(0.0f); appleData.push_back(0.0f);
-        }
     }
 
     glBufferData(GL_ARRAY_BUFFER, appleData.size() * sizeof(float), appleData.data(), GL_STATIC_DRAW);
 
     // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     // normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
-    // texture coord attribute
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-    glEnableVertexAttribArray(2);
+
 
 
     // Generate Sphere Data (for light source)
@@ -257,7 +247,7 @@ int main()
     // shader configuration
     // --------------------
     lightingShader.use();
-    lightingShader.setInt("texture1", 0);
+
 
 
     // render loop
@@ -283,7 +273,7 @@ int main()
         lightingShader.use();
         lightingShader.setVec3("lightColor", lightColor);
         lightingShader.setVec3("viewPos", camera.Position);
-        lightingShader.setBool("useTexture", true);
+        lightingShader.setVec3("objectColor", 1.0f, 0.0f, 0.0f); // Red Apple
         lightingShader.setBool("isFlashlight", flashlightOn);
 
         if (flashlightOn) {
@@ -299,9 +289,7 @@ int main()
             lightingShader.setVec3("lightDir", glm::vec3(0.0f)); 
         }
 
-        // bind texture
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, appleTexture);
+
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -359,44 +347,7 @@ int main()
     return 0;
 }
 
-// utility function for loading a 2D texture from file
-// ---------------------------------------------------
-unsigned int loadTexture(char const * path)
-{
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
 
-    int width, height, nrComponents;
-    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
-    if (data)
-    {
-        GLenum format;
-        if (nrComponents == 1)
-            format = GL_RED;
-        else if (nrComponents == 3)
-            format = GL_RGB;
-        else if (nrComponents == 4)
-            format = GL_RGBA;
-
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_image_free(data);
-    }
-    else
-    {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
-        stbi_image_free(data);
-    }
-
-    return textureID;
-}
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
@@ -477,6 +428,27 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 1.0f, 0.0f); // Green
     if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 0.0f, 1.0f); // Blue
     if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 1.0f, 0.0f); // Yellow
+
+    // Sensitivity Control
+    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && !key7Pressed) {
+        if (camera.MouseSensitivity > 0.005f)
+            camera.MouseSensitivity -= 0.005f;
+        std::cout << "Sensitivity: " << camera.MouseSensitivity << std::endl;
+        key7Pressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_RELEASE) {
+        key7Pressed = false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS && !key8Pressed) {
+        if (camera.MouseSensitivity < 0.5f)
+            camera.MouseSensitivity += 0.005f;
+        std::cout << "Sensitivity: " << camera.MouseSensitivity << std::endl;
+        key8Pressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_RELEASE) {
+        key8Pressed = false;
+    }
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes

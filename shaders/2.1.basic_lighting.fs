@@ -3,14 +3,11 @@ out vec4 FragColor;
 
 in vec3 FragPos;
 in vec3 Normal;
-in vec2 TexCoords;
 
 uniform vec3 lightPos;
 uniform vec3 viewPos;
 uniform vec3 lightColor;
 uniform vec3 objectColor;
-uniform sampler2D texture1;
-uniform bool useTexture;
 
 // Flashlight uniforms
 uniform vec3 lightDir;
@@ -60,14 +57,6 @@ void main()
         specular *= intensity;
     }
         
-    vec3 result;
-    if(useTexture) {
-        vec4 texColor = texture(texture1, TexCoords);
-        if(texColor.a < 0.1)
-            discard;
-        result = (ambient + diffuse + specular) * texColor.rgb;
-    } else {
-        result = (ambient + diffuse + specular) * objectColor;
-    }
+    vec3 result = (ambient + diffuse + specular) * objectColor;
     FragColor = vec4(result, 1.0);
 }
