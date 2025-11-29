@@ -9,6 +9,12 @@
 #include <iostream>
 
 
+/*
+  Carrega um modelo 3D a partir de um ficheiro OBJ.
+  Lê vértices, coordenadas de textura e normais do ficheiro e armazena-os nos vetores fornecidos.
+  Suporta apenas faces triangulares e quadrangulares (que são convertidas em triângulos).
+  Retorna true se o carregamento for bem-sucedido, false caso contrário.
+ */
 bool loadOBJ(
     const char * path, 
     std::vector<glm::vec3> & out_vertices, 
@@ -22,19 +28,16 @@ bool loadOBJ(
 
     FILE * file = fopen(path, "r");
     if( file == NULL ){
-        printf("Impossible to open the file ! Are you in the right path ?\n");
+        printf("Impossível abrir o ficheiro! Estás no diretório correto?\n");
         return false;
     }
 
     while( 1 ){
 
         char lineHeader[128];
-        // read the first word of the line
         int res = fscanf(file, "%s", lineHeader);
         if (res == EOF)
-            break; // EOF = End Of File. Quit the loop.
-
-        // else : parse lineHeader
+            break; 
         
         if ( strcmp( lineHeader, "v" ) == 0 ){
             glm::vec3 vertex;
@@ -50,7 +53,6 @@ bool loadOBJ(
             fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z );
             temp_normals.push_back(normal);
         }else if ( strcmp( lineHeader, "f" ) == 0 ){
-            // Read the rest of the line
             char line[1024];
             fgets(line, 1024, file);
             
@@ -62,8 +64,6 @@ bool loadOBJ(
                 &vIndex[3], &uvIndex[3], &nIndex[3]);
 
             if (matches == 9 || matches == 12) {
-                // Triangle or Quad
-                // First triangle
                 vertexIndices.push_back(vIndex[0]);
                 vertexIndices.push_back(vIndex[1]);
                 vertexIndices.push_back(vIndex[2]);
@@ -74,7 +74,6 @@ bool loadOBJ(
                 normalIndices.push_back(nIndex[1]);
                 normalIndices.push_back(nIndex[2]);
 
-                // If Quad, add second triangle
                 if (matches == 12) {
                     vertexIndices.push_back(vIndex[0]);
                     vertexIndices.push_back(vIndex[2]);
@@ -87,7 +86,6 @@ bool loadOBJ(
                     normalIndices.push_back(nIndex[3]);
                 }
             } else {
-                 // Try format v//vn
                  matches = sscanf(line, "%d//%d %d//%d %d//%d %d//%d", 
                     &vIndex[0], &nIndex[0],
                     &vIndex[1], &nIndex[1],
@@ -95,14 +93,12 @@ bool loadOBJ(
                     &vIndex[3], &nIndex[3]);
                  
                  if (matches == 6 || matches == 8) {
-                    // Triangle or Quad
                     vertexIndices.push_back(vIndex[0]);
                     vertexIndices.push_back(vIndex[1]);
                     vertexIndices.push_back(vIndex[2]);
                     normalIndices.push_back(nIndex[0]);
                     normalIndices.push_back(nIndex[1]);
                     normalIndices.push_back(nIndex[2]);
-                    // Dummy UVs
                     uvIndices.push_back(0); uvIndices.push_back(0); uvIndices.push_back(0);
 
                     if (matches == 8) {
@@ -115,13 +111,12 @@ bool loadOBJ(
                         uvIndices.push_back(0); uvIndices.push_back(0); uvIndices.push_back(0);
                     }
                  } else {
-                     printf("File can't be read by our simple parser :-( Matches: %d\n", matches);
+                     printf("Ficheiro não pode ser lido pelo nosso parser simples :-( Matches: %d\n", matches);
                  }
             }
         }
     }
 
-    // For each vertex of each triangle
     for( unsigned int i=0; i<vertexIndices.size(); i++ ){
         unsigned int vertexIndex = vertexIndices[i];
         glm::vec3 vertex = temp_vertices[ vertexIndex-1 ];

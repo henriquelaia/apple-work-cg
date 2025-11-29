@@ -14,12 +14,13 @@ find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glm QUIET)
 
-# ---- Sources ----
+# ---- Fontes ----
 add_executable(app
   src/main.cpp
+  common/shader.cpp
 )
 
-# ---- Include headers ----
+# ---- Incluir cabeçalhos ----
 target_include_directories(app PRIVATE
   ${CMAKE_SOURCE_DIR}/common
 )
@@ -47,9 +48,8 @@ else()
   target_link_libraries(app PRIVATE OpenGL::GL)
 endif()
 
-# ---- Copy shaders ----
+# ---- Copiar shaders ----
 file(COPY shaders DESTINATION ${CMAKE_BINARY_DIR})
 
-# ---- Copy assets ----
+# ---- Copiar recursos ----
 file(COPY src/Apple.obj DESTINATION ${CMAKE_BINARY_DIR}/src)
-file(COPY src/apple_color.png DESTINATION ${CMAKE_BINARY_DIR}/src)

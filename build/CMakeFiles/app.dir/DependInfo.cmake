@@ -8,7 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/mnt/c/Users/Admin/Desktop/cg-2-assignement/apple-work-cg/src/main.cpp" "CMakeFiles/app.dir/src/main.cpp.o" "gcc" "CMakeFiles/app.dir/src/main.cpp.o.d"
+  "/Users/henriquelaia/Desktop/apple-work-cg/common/shader.cpp" "CMakeFiles/app.dir/common/shader.cpp.o" "gcc" "CMakeFiles/app.dir/common/shader.cpp.o.d"
+  "/Users/henriquelaia/Desktop/apple-work-cg/src/main.cpp" "CMakeFiles/app.dir/src/main.cpp.o" "gcc" "CMakeFiles/app.dir/src/main.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

@@ -1,131 +1,94 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+using namespace glm;
 
-#include <shader_m.h>
-#include <camera.h>
+#include <shader.hpp>
 #include <objloader.hpp>
 
+// Variáveis Globais
+GLFWwindow* window;
 
+GLuint lightingShaderID;
+GLuint lampShaderID;
 
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <cstdlib> // For rand()
-#include <ctime>   // For time()
+GLuint MatrixID;
+GLuint ViewID;
+GLuint ModelID;
+GLuint LightColorID;
+GLuint ViewPosID;
+GLuint ObjectColorID;
+GLuint IsFlashlightID;
+GLuint LightPosID;
+GLuint LightDirID;
+GLuint CutOffID;
+GLuint OuterCutOffID;
+
+GLuint appleVAO, appleVBO;
+GLuint lightVAO, lightVBO, lightEBO;
+
+std::vector<glm::vec3> appleVertices;
+std::vector<glm::vec2> appleUVs;
+std::vector<glm::vec3> appleNormals;
+std::vector<float> sphereVertices;
+std::vector<unsigned int> sphereIndices;
+
+const unsigned int SCR_WIDTH = 1280;
+const unsigned int SCR_HEIGHT = 720;
+
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
+
+float cameraYaw   = -90.0f;
+float cameraPitch =  0.0f;
+float lastX =  SCR_WIDTH / 2.0;
+float lastY =  SCR_HEIGHT / 2.0;
+float fov   =  45.0f;
+bool firstMouse = true;
+
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
+glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+bool flashlightOn = false;
+bool fKeyPressed = false;
+bool autoRotate = false;
+bool rKeyPressed = false;
+bool spaceKeyPressed = false;
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
+void generateSphere(float radius, int sectorCount, int stackCount, std::vector<float>& vertices, std::vector<unsigned int>& indices);
 
-
-// settings
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 720;
-
-// camera
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
-bool firstMouse = true;
-
-// timing
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
-
-// lighting
-glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
-glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
-bool flashlightOn = false;
-bool fKeyPressed = false; // Debounce for F key
-bool autoRotate = false;
-bool rKeyPressed = false; // Debounce for R key
-bool spaceKeyPressed = false; // Debounce for Space key
-bool key7Pressed = false; // Debounce for 7 key
-bool key8Pressed = false; // Debounce for 8 key
-
-// sphere generation (kept for light source)
-void generateSphere(float radius, int sectorCount, int stackCount, std::vector<float>& vertices, std::vector<unsigned int>& indices) {
-    float x, y, z, xy;                              // vertex position
-    float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
-    float s, t;                                     // vertex texCoord
-
-    float sectorStep = 2 * M_PI / sectorCount;
-    float stackStep = M_PI / stackCount;
-    float sectorAngle, stackAngle;
-
-    for(int i = 0; i <= stackCount; ++i)
-    {
-        stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
-        xy = radius * cosf(stackAngle);             // r * cos(u)
-        z = radius * sinf(stackAngle);              // r * sin(u)
-
-        // add (sectorCount+1) vertices per stack
-        // the first and last vertices have same position and normal, but different tex coords
-        for(int j = 0; j <= sectorCount; ++j)
-        {
-            sectorAngle = j * sectorStep;           // starting from 0 to 2pi
-
-            // vertex position (x, y, z)
-            x = xy * cosf(sectorAngle);             // r * cos(u) * cos(v)
-            y = xy * sinf(sectorAngle);             // r * cos(u) * sin(v)
-            
-            // normalized vertex normal (nx, ny, nz)
-            nx = x * lengthInv;
-            ny = y * lengthInv;
-            nz = z * lengthInv;
-
-            // vertex tex coord (s, t) range between [0, 1]
-            s = (float)j / sectorCount;
-            t = (float)i / stackCount;
-
-            vertices.push_back(x);
-            vertices.push_back(y);
-            vertices.push_back(z);
-            vertices.push_back(nx);
-            vertices.push_back(ny);
-            vertices.push_back(nz);
-        }
-    }
-
-    // generate CCW index list of sphere triangles
-    int k1, k2;
-    for(int i = 0; i < stackCount; ++i)
-    {
-        k1 = i * (sectorCount + 1);     // beginning of current stack
-        k2 = k1 + sectorCount + 1;      // beginning of next stack
-
-        for(int j = 0; j < sectorCount; ++j, ++k1, ++k2)
-        {
-            // 2 triangles per sector excluding first and last stacks
-            // k1 => k2 => k1+1
-            if(i != 0)
-            {
-                indices.push_back(k1);
-                indices.push_back(k2);
-                indices.push_back(k1 + 1);
-            }
-
-            // k1+1 => k2 => k2+1
-            if(i != (stackCount-1))
-            {
-                indices.push_back(k1 + 1);
-                indices.push_back(k2);
-                indices.push_back(k2 + 1);
-            }
-        }
-    }
-}
-
+/*
+  Ponto de entrada da aplicação.
+  Responsável por inicializar o GLFW e GLEW, configurar a janela e o contexto OpenGL,
+  carregar os modelos 3D (Maçã) e shaders, e executar o ciclo principal de renderização (Game Loop).
+  Também gere a limpeza de recursos ao fechar a aplicação.
+ */
 int main()
 {
-    // glfw: initialize and configure
-    // ------------------------------
-    glfwInit();
+    if (!glfwInit()) {
+        fprintf(stderr, "Falha ao inicializar GLFW\n");
+        return -1;
+    }
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -134,12 +97,9 @@ int main()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    // Initialize random seed
     srand(static_cast <unsigned> (time(0)));
 
-    // glfw window creation
-    // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Apple CG Assignment", NULL, NULL);
+    window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Apple CG Assignment", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -151,11 +111,8 @@ int main()
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
 
-    // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    // glew: load all OpenGL function pointers
-    // ---------------------------------------
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK)
     {
@@ -163,38 +120,22 @@ int main()
         return -1;
     }
 
-    // configure global opengl state
-    // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
-    // build and compile our shader zprogram
-    // ------------------------------------
-    Shader lightingShader("shaders/2.1.basic_lighting.vs", "shaders/2.1.basic_lighting.fs");
-    Shader lampShader("shaders/2.1.lamp.vs", "shaders/2.1.lamp.fs");
+    lightingShaderID = LoadShaders("shaders/2.1.basic_lighting.vs", "shaders/2.1.basic_lighting.fs");
+    lampShaderID = LoadShaders("shaders/2.1.lamp.vs", "shaders/2.1.lamp.fs");
 
-
-
-    // set up vertex data (and buffer(s)) and configure vertex attributes
-    // ------------------------------------------------------------------
-    
-    // Load Apple OBJ
-    std::vector<glm::vec3> appleVertices;
-    std::vector<glm::vec2> appleUVs;
-    std::vector<glm::vec3> appleNormals;
     bool res = loadOBJ("src/Apple.obj", appleVertices, appleUVs, appleNormals);
     if(!res) {
         std::cout << "Failed to load Apple.obj" << std::endl;
     }
 
-    // Prepare Apple VAO
-    unsigned int appleVAO, appleVBO;
     glGenVertexArrays(1, &appleVAO);
     glGenBuffers(1, &appleVBO);
 
     glBindVertexArray(appleVAO);
     glBindBuffer(GL_ARRAY_BUFFER, appleVBO);
     
-    // Pack data: Px, Py, Pz, Nx, Ny, Nz, Tx, Ty
     std::vector<float> appleData;
     for(size_t i=0; i<appleVertices.size(); i++){
         appleData.push_back(appleVertices[i].x);
@@ -212,21 +153,13 @@ int main()
 
     glBufferData(GL_ARRAY_BUFFER, appleData.size() * sizeof(float), appleData.data(), GL_STATIC_DRAW);
 
-    // position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    // normal attribute
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+    generateSphere(0.2f, 36, 18, sphereVertices, sphereIndices);
 
-
-    // Generate Sphere Data (for light source)
-    std::vector<float> sphereVertices;
-    std::vector<unsigned int> sphereIndices;
-    generateSphere(0.2f, 36, 18, sphereVertices, sphereIndices); // Smaller radius for light
-
-    unsigned int lightVAO, lightVBO, lightEBO;
     glGenVertexArrays(1, &lightVAO);
     glGenBuffers(1, &lightVBO);
     glGenBuffers(1, &lightEBO);
@@ -239,65 +172,43 @@ int main()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lightEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereIndices.size() * sizeof(unsigned int), sphereIndices.data(), GL_STATIC_DRAW);
 
-    // position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-
-    // shader configuration
-    // --------------------
-    lightingShader.use();
-
-
-
-    // render loop
-    // -----------
     while (!glfwWindowShouldClose(window))
     {
-        // per-frame time logic
-        // --------------------
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // input
-        // -----
         processInput(window);
 
-        // render
-        // ------
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // be sure to activate shader when setting uniforms/drawing objects
-        lightingShader.use();
-        lightingShader.setVec3("lightColor", lightColor);
-        lightingShader.setVec3("viewPos", camera.Position);
-        lightingShader.setVec3("objectColor", 1.0f, 0.0f, 0.0f); // Red Apple
-        lightingShader.setBool("isFlashlight", flashlightOn);
+        glUseProgram(lightingShaderID);
+
+        glUniform3fv(glGetUniformLocation(lightingShaderID, "lightColor"), 1, &lightColor[0]);
+        glUniform3fv(glGetUniformLocation(lightingShaderID, "viewPos"), 1, &cameraPos[0]);
+        glUniform3f(glGetUniformLocation(lightingShaderID, "objectColor"), 1.0f, 0.0f, 0.0f);
+        glUniform1i(glGetUniformLocation(lightingShaderID, "isFlashlight"), flashlightOn);
 
         if (flashlightOn) {
-            // Flashlight: Light comes from camera position and points forward
-            lightingShader.setVec3("lightPos", camera.Position);
-            lightingShader.setVec3("lightDir", camera.Front);
-            lightingShader.setFloat("cutOff", glm::cos(glm::radians(12.5f)));
-            lightingShader.setFloat("outerCutOff", glm::cos(glm::radians(17.5f)));
+            glUniform3fv(glGetUniformLocation(lightingShaderID, "lightPos"), 1, &cameraPos[0]);
+            glUniform3fv(glGetUniformLocation(lightingShaderID, "lightDir"), 1, &cameraFront[0]);
+            glUniform1f(glGetUniformLocation(lightingShaderID, "cutOff"), glm::cos(glm::radians(12.5f)));
+            glUniform1f(glGetUniformLocation(lightingShaderID, "outerCutOff"), glm::cos(glm::radians(17.5f)));
         } else {
-            // Normal Light: Use global lightPos
-            lightingShader.setVec3("lightPos", lightPos);
-            // lightDir not used for point light in our shader logic (except for spotlight calc which is skipped)
-            lightingShader.setVec3("lightDir", glm::vec3(0.0f)); 
+            glUniform3fv(glGetUniformLocation(lightingShaderID, "lightPos"), 1, &lightPos[0]);
+            glUniform3f(glGetUniformLocation(lightingShaderID, "lightDir"), 0.0f, 0.0f, 0.0f);
         }
 
+        glm::mat4 projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        
+        glUniformMatrix4fv(glGetUniformLocation(lightingShaderID, "projection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(lightingShaderID, "view"), 1, GL_FALSE, &view[0][0]);
 
-
-        // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = camera.GetViewMatrix();
-        lightingShader.setMat4("projection", projection);
-        lightingShader.setMat4("view", view);
-
-        // world transformation
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::scale(model, glm::vec3(5.0f)); 
         
@@ -305,67 +216,64 @@ int main()
              model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
         }
         
-        lightingShader.setMat4("model", model);
+        glUniformMatrix4fv(glGetUniformLocation(lightingShaderID, "model"), 1, GL_FALSE, &model[0][0]);
 
-        // render the apple
         glBindVertexArray(appleVAO);
         glDrawArrays(GL_TRIANGLES, 0, appleVertices.size());
 
 
-        // also draw the lamp object
         if (!flashlightOn) {
-            lampShader.use();
-            lampShader.setVec3("lightColor", lightColor);
-            lampShader.setMat4("projection", projection);
-            lampShader.setMat4("view", view);
+            glUseProgram(lampShaderID);
+            
+            glUniform3fv(glGetUniformLocation(lampShaderID, "lightColor"), 1, &lightColor[0]);
+            glUniformMatrix4fv(glGetUniformLocation(lampShaderID, "projection"), 1, GL_FALSE, &projection[0][0]);
+            glUniformMatrix4fv(glGetUniformLocation(lampShaderID, "view"), 1, GL_FALSE, &view[0][0]);
+            
             model = glm::mat4(1.0f);
             model = glm::translate(model, lightPos);
-            lampShader.setMat4("model", model);
+            glUniformMatrix4fv(glGetUniformLocation(lampShaderID, "model"), 1, GL_FALSE, &model[0][0]);
 
             glBindVertexArray(lightVAO);
             glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
         }
 
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // optional: de-allocate all resources once they've outlived their purpose:
-    // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &appleVAO);
     glDeleteVertexArrays(1, &lightVAO);
     glDeleteBuffers(1, &appleVBO);
     glDeleteBuffers(1, &lightVBO);
     glDeleteBuffers(1, &lightEBO);
+    glDeleteProgram(lightingShaderID);
+    glDeleteProgram(lampShaderID);
 
-    // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
 }
 
 
-
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
+/*
+  Processa o input do teclado para controlar o movimento da câmara,
+  alternar modos (lanterna, rotação automática) e controlar a posição/cor da luz.
+  Fecha a aplicação se a tecla ESC for pressionada.
+ */
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
+    float cameraSpeed = 2.5f * deltaTime;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
+        cameraPos += cameraSpeed * cameraFront;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
+        cameraPos -= cameraSpeed * cameraFront;
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
 
-    // Flashlight Toggle
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && !fKeyPressed) {
         flashlightOn = !flashlightOn;
         fKeyPressed = true;
@@ -374,7 +282,6 @@ void processInput(GLFWwindow *window)
         fKeyPressed = false;
     }
 
-    // Auto-Rotation Toggle
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rKeyPressed) {
         autoRotate = !autoRotate;
         rKeyPressed = true;
@@ -383,7 +290,6 @@ void processInput(GLFWwindow *window)
         rKeyPressed = false;
     }
 
-    // Random Light Color (Space)
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !spaceKeyPressed) {
         float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
         float g = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
@@ -395,11 +301,9 @@ void processInput(GLFWwindow *window)
         spaceKeyPressed = false;
     }
 
-    // Light Controls (Only if NOT in flashlight mode)
     if (!flashlightOn) {
         float lightSpeed = 2.5f * deltaTime;
         
-        // Rotate Light (Orbit around Y axis)
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
             float x = lightPos.x;
             float z = lightPos.z;
@@ -413,7 +317,6 @@ void processInput(GLFWwindow *window)
             lightPos.z = x * sin(-lightSpeed) + z * cos(-lightSpeed);
         }
 
-        // Move Light Closer/Further (Scale distance)
         if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
             lightPos *= 0.99f; // Closer
         }
@@ -422,47 +325,28 @@ void processInput(GLFWwindow *window)
         }
     }
 
-    // Change Light Color
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 1.0f, 1.0f); // White
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red
-    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 1.0f, 0.0f); // Green
-    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 0.0f, 1.0f); // Blue
-    if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 1.0f, 0.0f); // Yellow
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 0.0f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) lightColor = glm::vec3(0.0f, 0.0f, 1.0f);
+    if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) lightColor = glm::vec3(1.0f, 1.0f, 0.0f);
 
-    // Sensitivity Control
-    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && !key7Pressed) {
-        if (camera.MouseSensitivity > 0.005f)
-            camera.MouseSensitivity -= 0.005f;
-        std::cout << "Sensitivity: " << camera.MouseSensitivity << std::endl;
-        key7Pressed = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_RELEASE) {
-        key7Pressed = false;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS && !key8Pressed) {
-        if (camera.MouseSensitivity < 0.5f)
-            camera.MouseSensitivity += 0.005f;
-        std::cout << "Sensitivity: " << camera.MouseSensitivity << std::endl;
-        key8Pressed = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_RELEASE) {
-        key8Pressed = false;
-    }
 }
 
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
+/*
+
+  Callback executado quando a janela é redimensionada.
+  Ajusta o viewport do OpenGL para corresponder às novas dimensões da janela.
+ */
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
 
-
-// glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
+/*
+Callback executado quando o rato é movido.
+ Calcula o deslocamento do rato e atualiza a orientação da câmara (yaw e pitch).
+ */
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
     if (firstMouse)
@@ -473,17 +357,104 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-
+    float yoffset = lastY - ypos; 
     lastX = xpos;
     lastY = ypos;
 
-    camera.ProcessMouseMovement(xoffset, yoffset);
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    cameraYaw += xoffset;
+    cameraPitch += yoffset;
+
+    if (cameraPitch > 89.0f)
+        cameraPitch = 89.0f;
+    if (cameraPitch < -89.0f)
+        cameraPitch = -89.0f;
+
+    glm::vec3 front;
+    front.x = cos(glm::radians(cameraYaw)) * cos(glm::radians(cameraPitch));
+    front.y = sin(glm::radians(cameraPitch));
+    front.z = sin(glm::radians(cameraYaw)) * cos(glm::radians(cameraPitch));
+    cameraFront = glm::normalize(front);
 }
 
-// glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
+/*
+
+ Callback executado quando a roda do rato é usada.
+ Ajusta o zoom da câmara (FOV).
+ */
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    camera.ProcessMouseScroll(yoffset);
+    fov -= (float)yoffset;
+    if (fov < 1.0f)
+        fov = 1.0f;
+    if (fov > 45.0f)
+        fov = 45.0f;
+}
+
+/*
+
+ Gera a geometria de uma esfera (vértices e índices) para ser usada como visualização da fonte de luz.
+ Calcula as coordenadas 3D, normais e coordenadas de textura com base no raio e na resolução (setores e stacks).
+ Os dados são armazenados nos vetores passados por referência.
+ */
+void generateSphere(float radius, int sectorCount, int stackCount, std::vector<float>& vertices, std::vector<unsigned int>& indices) {
+    float x, y, z, xy;                              
+    float nx, ny, nz, lengthInv = 1.0f / radius;   
+
+    float sectorStep = 2 * M_PI / sectorCount;
+    float stackStep = M_PI / stackCount;
+    float sectorAngle, stackAngle;
+
+    for(int i = 0; i <= stackCount; ++i)
+    {
+        stackAngle = M_PI / 2 - i * stackStep;
+        xy = radius * cosf(stackAngle);
+        z = radius * sinf(stackAngle);
+
+        for(int j = 0; j <= sectorCount; ++j)
+        {
+            sectorAngle = j * sectorStep;
+
+            x = xy * cosf(sectorAngle);
+            y = xy * sinf(sectorAngle);
+            
+            nx = x * lengthInv;
+            ny = y * lengthInv;
+            nz = z * lengthInv;
+
+            vertices.push_back(x);
+            vertices.push_back(y);
+            vertices.push_back(z);
+            vertices.push_back(nx);
+            vertices.push_back(ny);
+            vertices.push_back(nz);
+        }
+    }
+
+    int k1, k2;
+    for(int i = 0; i < stackCount; ++i)
+    {
+        k1 = i * (sectorCount + 1);
+        k2 = k1 + sectorCount + 1;
+
+        for(int j = 0; j < sectorCount; ++j, ++k1, ++k2)
+        {
+            if(i != 0)
+            {
+                indices.push_back(k1);
+                indices.push_back(k2);
+                indices.push_back(k1 + 1);
+            }
+
+            if(i != (stackCount-1))
+            {
+                indices.push_back(k1 + 1);
+                indices.push_back(k2);
+                indices.push_back(k2 + 1);
+            }
+        }
+    }
 }
